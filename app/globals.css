@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root { --ink:#10233e; --muted:#687991; --line:#e6ebf1; --canvas:#f5f7fa; --blue:#2563eb; --navy:#0b1f3a; --coral:#e76454; }
+:root { --ink:#10233e; --muted:#687991; --line:#e6ebf1; --canvas:#f5f7fa; --blue:#2563eb; --navy:#0b1f3a; --coral:#e76454; --font-inter:Inter,Arial,sans-serif; --font-manrope:Manrope,Arial,sans-serif; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--canvas); color:var(--ink); font-family:var(--font-inter),sans-serif; }
 button,input,select,textarea { font:inherit; }
