@@ -1,0 +1,60 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role { HEAD INCHARGE PC }
+enum ProjectStatus { RUNNING COMPLETED ON_HOLD }
+enum TaskStatus { ON_TIME DELAYED COMPLETED }
+
+model User {
+  id       String    @id @default(uuid())
+  name     String
+  email    String    @unique
+  role     Role
+  projects Project[] @relation("InchargeProjects")
+  moms     MOM[]
+}
+
+model Project {
+  id         String        @id @default(uuid())
+  name       String
+  status     ProjectStatus @default(RUNNING)
+  inchargeId String
+  incharge   User          @relation("InchargeProjects", fields: [inchargeId], references: [id])
+  tasks      Task[]
+  scopes     Scope[]
+  moms       MOM[]
+}
+
+model Task {
+  id              String     @id @default(uuid())
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title           String
+  status          TaskStatus @default(ON_TIME)
+  dueDate         DateTime
+  lastUpdatedDate DateTime   @updatedAt
+}
+
+model Scope {
+  id                  String  @id @default(uuid())
+  projectId           String
+  project             Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  drawingFileUrl      String?
+  workItemDescription String
+}
+
+model MOM {
+  id          String   @id @default(uuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  meetingDate DateTime
+  notes       String
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+}
