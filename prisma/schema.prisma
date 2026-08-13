@@ -7,9 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role { HEAD INCHARGE PC }
+enum Role { MD ARCHITECT PROJECT_HEAD EXECUTION_HEAD PROCESS_COORDINATOR PURCHASE_MANAGER }
 enum ProjectStatus { RUNNING COMPLETED ON_HOLD }
 enum TaskStatus { ON_TIME DELAYED COMPLETED }
+enum ProjectPhase { INITIATION DESIGN FULL_KITTING EXECUTION FINISHING }
 
 model User {
   id       String    @id @default(uuid())
@@ -29,6 +30,11 @@ model Project {
   tasks      Task[]
   scopes     Scope[]
   moms       MOM[]
+  phase      ProjectPhase @default(INITIATION)
+  currentGate String?
+  gateProgress Int        @default(0)
+  budget       Decimal      @db.Decimal(18, 2)
+  spent        Decimal      @default(0) @db.Decimal(18, 2)
 }
 
 model Task {
@@ -39,6 +45,22 @@ model Task {
   status          TaskStatus @default(ON_TIME)
   dueDate         DateTime
   lastUpdatedDate DateTime   @updatedAt
+  phase           ProjectPhase
+  taskCode        String?
+  ownerName       String
+  startDate       DateTime
+  percentDone     Int        @default(0)
+  actualEndDate   DateTime?
+  formLink        String?
+  frequency       String?
+  isGate          Boolean    @default(false)
+  gateApprovedAt  DateTime?
+  closedById       String?
+  closedByRole     Role?
+  closedAt         DateTime?
+  acknowledgedAt  DateTime?
+  acknowledgedById String?
+  photoUrls         String[]
 }
 
 model Scope {
