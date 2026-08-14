@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type Role = "MD" | "Architect" | "Project Head" | "Execution Head" | "Process Coordinator" | "Purchase Manager";
 type View = "dashboard" | "projects" | "tasks" | "budget" | "scope" | "meetings" | "access";
@@ -53,9 +54,52 @@ const teamUsers: { initials: string; name: string; email: string; role: Role; ac
   { initials: "RM", name: "Rhea Mehta", email: "rhea@grsprojects.in", role: "Purchase Manager", access: "Budget & procurement" },
 ];
 
+const roleLabels: Record<string, Role> = {
+  MD: "MD", ARCHITECT: "Architect", PROJECT_HEAD: "Project Head", EXECUTION_HEAD: "Execution Head",
+  PROCESS_COORDINATOR: "Process Coordinator", PURCHASE_MANAGER: "Purchase Manager",
+};
+
+type AuthProfile = { id: string; name: string; email: string; role: string };
+
 export default function Home() {
+  const supabase = useMemo(() => createClient(), []);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function loadProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active) return;
+      if (!user) { setProfile(null); setLoading(false); return; }
+      const { data, error } = await supabase.from("pm_profiles").select("id,name,email,role").eq("id", user.id).single();
+      if (!active) return;
+      if (error || !data) { await supabase.auth.signOut(); setAuthError("Your account has no Project Master role. Contact the Project Head."); setProfile(null); }
+      else setProfile(data as AuthProfile);
+      setLoading(false);
+    }
+    loadProfile();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => { loadProfile(); });
+    return () => { active = false; listener.subscription.unsubscribe(); };
+  }, [supabase]);
+
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setAuthError(""); setLoading(true);
+    const form = new FormData(event.currentTarget);
+    const { error } = await supabase.auth.signInWithPassword({ email: String(form.get("email")).trim().toLowerCase(), password: String(form.get("password")) });
+    if (error) { setAuthError("Invalid login ID or password."); setLoading(false); }
+  }
+
+  if (loading) return <main className="auth-screen"><div className="auth-card"><div className="auth-logo">PM</div><p>Securing your workspace…</p></div></main>;
+  if (!profile) return <main className="auth-screen"><form className="auth-card" onSubmit={signIn}><div className="auth-logo">PM</div><p className="eyebrow">Project Master</p><h1>Sign in to continue</h1><p className="auth-subtitle">Use your company login ID and password.</p><label>Login ID<input name="email" type="email" required autoComplete="username" placeholder="name@grs.com" /></label><label>Password<input name="password" type="password" required autoComplete="current-password" /></label>{authError && <div className="auth-error">{authError}</div>}<button className="primary">Sign in</button></form></main>;
+  return <ProjectMasterApp profile={profile} onSignOut={() => supabase.auth.signOut()} />;
+}
+
+function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSignOut: () => Promise<unknown> }) {
   const [view, setView] = useState<View>("dashboard");
-  const [role, setRole] = useState<Role>("Project Head");
+  const role = roleLabels[profile.role] ?? "Architect";
+  const initials = profile.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
   const [query, setQuery] = useState("");
   const [taskRows, setTaskRows] = useState(baseTasks);
   const [projectRows, setProjectRows] = useState(projects);
@@ -111,7 +155,7 @@ export default function Home() {
         <div className="sidebar-bottom">
           <button className="nav-item"><span>?</span>Help centre</button>
           <div className="profile">
-            <div className="avatar">AR</div><div><strong>Arjun Rao</strong><small>{role}</small></div><span>⌄</span>
+            <div className="avatar">{initials}</div><div><strong>{profile.name}</strong><small>{role}</small></div><button className="sign-out" onClick={onSignOut}>Sign out</button>
           </div>
         </div>
       </aside>
@@ -121,15 +165,15 @@ export default function Home() {
           <div className="mobile-brand">PM</div>
           <label className="search"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search projects, tasks or meetings..." /></label>
           <div className="top-actions">
-            <label className="role-switch"><span>View as</span><select value={role} onChange={(e) => { const next = e.target.value as Role; setRole(next); if (view === "access" && next !== "Project Head" && next !== "MD") setView("dashboard"); }}><option>MD</option><option>Architect</option><option>Project Head</option><option>Execution Head</option><option>Process Coordinator</option><option>Purchase Manager</option></select></label>
+            <span className="signed-role">{role}</span>
             <button className="notification" aria-label="Notifications" onClick={() => setNotificationsOpen(!notificationsOpen)}>♢{role === "Project Head" && acknowledgements.some((item) => !item.acknowledged) && <i />} {role === "Project Head" && acknowledgements.filter((item) => !item.acknowledged).length > 0 && <b>{acknowledgements.filter((item) => !item.acknowledged).length}</b>}</button>
-            <div className="top-avatar">AR</div>
+            <div className="top-avatar">{initials}</div>
           </div>
         </header>
 
         <div className="content">
           <section className="hero-row">
-            <div><p className="eyebrow">Thursday, 13 August</p><h1>{view === "dashboard" ? "Good morning, Arjun." : nav.find((n) => n.id === view)?.label}</h1><p className="subtitle">{view === "dashboard" ? "Here’s what needs your attention across all projects today." : `A focused view of your ${nav.find((n) => n.id === view)?.label.toLowerCase()}.`}</p></div>
+            <div><p className="eyebrow">Project operations</p><h1>{view === "dashboard" ? `Welcome, ${profile.name.split(" ")[0]}.` : nav.find((n) => n.id === view)?.label}</h1><p className="subtitle">{view === "dashboard" ? "Here’s what needs your attention across all projects today." : `A focused view of your ${nav.find((n) => n.id === view)?.label.toLowerCase()}.`}</p></div>
             <div className="header-actions"><button className="secondary" onClick={() => notify("Report prepared for review")}>↗ Export report</button>{view === "projects" && canManage ? <button className="primary" onClick={() => setManageModal("project")}>＋ Add project</button> : view === "access" && canManage ? <button className="primary" onClick={() => setManageModal("member")}>＋ Add member</button> : view !== "budget" && <button className="primary" onClick={() => view === "meetings" ? setModal("mom") : setModal("task")}>＋ {view === "meetings" ? "Add MOM" : "New task"}</button>}</div>
           </section>
 
@@ -144,7 +188,7 @@ export default function Home() {
       </section>
 
       {modal && <Modal type={modal} canEdit={modal === "task" ? canCreateTasks : canEditMoms} onClose={() => setModal(null)} onSubmit={submitTask} onSave={() => { setModal(null); notify("Meeting notes saved"); }} />}
-      {manageModal && <ManageModal type={manageModal} onClose={() => setManageModal(null)} onSave={(data) => { if (manageModal === "project") { setProjectRows([...projectRows, { id: Date.now(), code: `PM-${String(projectRows.length + 32).padStart(3, "0")}`, name: data.name, location: data.location, progress: 0, tasks: 0, overdue: 0, team: ["AR"], due: data.due || "TBD", tone: "blue", phase: "Initiation", gate: "Gate 1 · Concept Brief Signed", gateProgress: 0, budget: Number(data.budget) || 0, spent: 0 }]); notify("New project added"); } else { notify(`${data.name} added as ${data.role}`); } setManageModal(null); }} />}
+      {manageModal && <ManageModal type={manageModal} onClose={() => setManageModal(null)} onSave={async (data) => { if (manageModal === "project") { setProjectRows([...projectRows, { id: Date.now(), code: `PM-${String(projectRows.length + 32).padStart(3, "0")}`, name: data.name, location: data.location, progress: 0, tasks: 0, overdue: 0, team: [initials], due: data.due || "TBD", tone: "blue", phase: "Initiation", gate: "Gate 1 · Concept Brief Signed", gateProgress: 0, budget: Number(data.budget) || 0, spent: 0 }]); notify("New project added"); } else { const supabase = createClient(); const { error } = await supabase.functions.invoke("pm-admin-users", { body: { name: data.name, email: data.email, password: data.password, role: data.role } }); if (error) { notify(error.message || "Unable to create user"); return; } notify(`${data.name} created as ${data.role}`); } setManageModal(null); }} />}
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {notificationsOpen && <NotificationPanel role={role} items={acknowledgements} onClose={() => setNotificationsOpen(false)} onAcknowledge={(id) => { setAcknowledgements(acknowledgements.map((item) => item.id === id ? { ...item, acknowledged: true } : item)); notify("Task closure acknowledged"); }} />}
       {taskToClose && <TaskClosureModal task={taskToClose} role={role} onClose={() => setTaskToClose(null)} onConfirm={() => confirmTaskClosure(taskToClose)} />}
@@ -195,8 +239,8 @@ function PanelTitle({ title, subtitle, action, onClick }: { title: string; subti
 function ProjectRow({ project }: { project: Project }) { return <article className="project-row"><div className={`project-mark ${project.tone}`}>{project.code.slice(-2)}</div><div className="project-main"><strong>{project.name}</strong><small>{project.phase} · {project.gate}</small><div className="progress"><i style={{ width: `${project.progress}%` }} /></div></div><div className="project-stat"><strong>{project.progress}%</strong><small>complete</small></div><div className="project-stat hide-small"><strong>{project.gateProgress}%</strong><small>gate ready</small></div><div className="avatars hide-small">{project.team.map((member) => <span key={member}>{member}</span>)}</div><button className="more" aria-label="Project options">•••</button></article>; }
 function Activity({ initials, text, detail }: { initials: string; text: React.ReactNode; detail: string }) { return <div className="activity-row"><div className="avatar soft">{initials}</div><div><p>{text}</p><small>{detail}</small></div><i /></div>; }
 
-function ManageModal({ type, onClose, onSave }: { type: "project" | "member"; onClose: () => void; onSave: (data: Record<string, string>) => void }) {
-  return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={(e) => e.stopPropagation()}><div className="modal-head"><div><p className="eyebrow">Management access</p><h2>{type === "project" ? "Add new project" : "Add new member"}</h2></div><button onClick={onClose}>×</button></div><form onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); onSave(Object.fromEntries(form.entries()) as Record<string, string>); }}><label>{type === "project" ? "Project name" : "Full name"}<input name="name" required placeholder={type === "project" ? "Enter project name" : "Enter member name"} /></label>{type === "project" ? <><label>Location<input name="location" required placeholder="City, State" /></label><div className="form-grid"><label>Approved budget<input name="budget" type="number" min="0" placeholder="Amount in INR" /></label><label>Target completion<input name="due" type="date" /></label></div></> : <><label>Email address<input name="email" type="email" required placeholder="name@company.com" /></label><label>Role<select name="role"><option>MD</option><option>Architect</option><option>Project Head</option><option>Execution Head</option><option>Process Coordinator</option><option>Purchase Manager</option></select></label></>}<div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary">{type === "project" ? "Add project" : "Add member"}</button></div></form></div></div>;
+function ManageModal({ type, onClose, onSave }: { type: "project" | "member"; onClose: () => void; onSave: (data: Record<string, string>) => void | Promise<void> }) {
+  return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={(e) => e.stopPropagation()}><div className="modal-head"><div><p className="eyebrow">Management access</p><h2>{type === "project" ? "Add new project" : "Add new member"}</h2></div><button onClick={onClose}>×</button></div><form onSubmit={async (e) => { e.preventDefault(); const form = new FormData(e.currentTarget); await onSave(Object.fromEntries(form.entries()) as Record<string, string>); }}><label>{type === "project" ? "Project name" : "Full name"}<input name="name" required placeholder={type === "project" ? "Enter project name" : "Enter member name"} /></label>{type === "project" ? <><label>Location<input name="location" required placeholder="City, State" /></label><div className="form-grid"><label>Approved budget<input name="budget" type="number" min="0" placeholder="Amount in INR" /></label><label>Target completion<input name="due" type="date" /></label></div></> : <><label>Email address<input name="email" type="email" required pattern="[^@]+@grs\\.com" title="Use a @grs.com company email" placeholder="name@grs.com" /></label><label>Temporary password<input name="password" type="password" minLength={8} required autoComplete="new-password" placeholder="Minimum 8 characters" /></label><label>Role<select name="role"><option>MD</option><option>Architect</option><option>Project Head</option><option>Execution Head</option><option>Process Coordinator</option><option>Purchase Manager</option></select></label></>}<div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button className="primary">{type === "project" ? "Add project" : "Create user"}</button></div></form></div></div>;
 }
 
 function AccessControl({ onNotify, onInvite, managerRole }: { onNotify: (message: string) => void; onInvite: () => void; managerRole: Role }) {
