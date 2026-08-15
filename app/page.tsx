@@ -177,7 +177,7 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
             <div className="header-actions"><button className="secondary" onClick={() => notify("Report prepared for review")}>↗ Export report</button>{view === "projects" && canManage ? <button className="primary" onClick={() => setManageModal("project")}>＋ Add project</button> : view === "access" && canManage ? <button className="primary" onClick={() => setManageModal("member")}>＋ Add member</button> : view !== "budget" && projectRows.length > 0 && <button className="primary" onClick={() => view === "meetings" ? setModal("mom") : setModal("task")}>＋ {view === "meetings" ? "Add MOM" : "New task"}</button>}</div>
           </section>
 
-          {view === "dashboard" && <Dashboard onOpen={setView} />}
+          {view === "dashboard" && <Dashboard projects={projectRows} tasks={taskRows} onOpen={setView} />}
           {view === "projects" && <Projects rows={filteredProjects} canManage={canManage} onPhaseChange={changeProjectPhase} />}
           {view === "tasks" && <Tasks rows={taskRows} editable={canCloseTasks} onUpdate={closeTask} />}
           {view === "budget" && <BudgetSheet rows={filteredProjects} />}
@@ -202,13 +202,15 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
   );
 }
 
-function Dashboard({ onOpen }: { onOpen: (view: View) => void }) {
+function Dashboard({ projects, tasks, onOpen }: { projects: Project[]; tasks: TaskRow[]; onOpen: (view: View) => void }) {
+  const averageGateReadiness = projects.length ? Math.round(projects.reduce((sum, project) => sum + project.gateProgress, 0) / projects.length) : 0;
+  const delayedTasks = tasks.filter((task) => task.status === "Delayed").length;
   return <>
     <section className="metrics">
-      <Metric label="Running projects" value="0" detail="Add your first project" icon="▦" tone="blue" />
-      <Metric label="Gate readiness" value="0%" detail="No gates configured" icon="◇" tone="green" />
-      <Metric label="Stale updates" value="0" detail="Workspace is up to date" icon="!" tone="coral" />
-      <Metric label="Weekly disciplines" value="0%" detail="No activity recorded" icon="◷" tone="amber" />
+      <Metric label="Running projects" value={String(projects.length)} detail={projects.length ? `${projects.length} active in the workspace` : "Add your first project"} icon="▦" tone="blue" />
+      <Metric label="Gate readiness" value={`${averageGateReadiness}%`} detail={projects.length ? "Across active projects" : "No gates configured"} icon="◇" tone="green" />
+      <Metric label="Delayed tasks" value={String(delayedTasks)} detail={delayedTasks ? "Needs attention" : "Workspace is up to date"} icon="!" tone="coral" />
+      <Metric label="Tracked tasks" value={String(tasks.length)} detail={tasks.length ? "Across all projects" : "No activity recorded"} icon="◷" tone="amber" />
     </section>
 
     <section className="dashboard-grid">
@@ -218,20 +220,20 @@ function Dashboard({ onOpen }: { onOpen: (view: View) => void }) {
       </div>
       <div className="panel deadline-panel">
         <PanelTitle title="Deadline watch" subtitle="Next 7 days" action="Open tasks" onClick={() => onOpen("tasks")} />
-        <div className="deadline-list">{baseTasks.slice(0, 4).map((task, i) => <div className="deadline" key={task.title}><div className={`date-box ${i === 0 ? "urgent" : ""}`}><strong>{task.due.split(" ")[0]}</strong><span>DUE</span></div><div><strong>{task.title}</strong><small>{task.phase} · {task.project}</small></div><span className={`status ${task.status === "Delayed" ? "delayed" : task.status === "Completed" ? "complete" : "ontime"}`}>{task.status}</span></div>)}{baseTasks.length === 0 && <div className="empty">No upcoming deadlines.</div>}</div>
+        <div className="deadline-list">{tasks.slice(0, 4).map((task, i) => <div className="deadline" key={`${task.project}-${task.code}`}><div className={`date-box ${i === 0 ? "urgent" : ""}`}><strong>{task.due.split(" ")[0]}</strong><span>DUE</span></div><div><strong>{task.title}</strong><small>{task.phase} · {task.project}</small></div><span className={`status ${task.status === "Delayed" ? "delayed" : task.status === "Completed" ? "complete" : "ontime"}`}>{task.status}</span></div>)}{tasks.length === 0 && <div className="empty">No upcoming deadlines.</div>}</div>
       </div>
     </section>
 
-    <GanttChart />
+    <GanttChart projects={projects} />
 
     <section className="panel activity activity-wide"><PanelTitle title="Recent activity" subtitle="Across your workspace" /><div className="empty">No activity yet.</div></section>
   </>;
 }
 
-function GanttChart() {
+function GanttChart({ projects }: { projects: Project[] }) {
   const months = ["JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  const rows: { project: string; code: string; phase: string; start: number; width: number; progress: number; due: string; tone: string }[] = [];
-  return <section className="panel gantt-panel"><div className="gantt-title"><div><p className="eyebrow">Master programme</p><h2>All-project Gantt chart</h2><p>Your project schedules will appear here.</p></div><div className="gantt-key"><span><i className="key-plan" />Planned</span><span><i className="key-progress" />Completed</span></div></div><div className="gantt-scroll"><div className="gantt-chart"><div className="gantt-header"><span>Project / current phase</span><div className="gantt-months">{months.map((month) => <span key={month}>{month}</span>)}</div><span>Due</span></div>{rows.map((row) => <div className="gantt-row" key={row.code}><div className="gantt-project"><span className={`project-mark ${row.tone}`}>{row.code.slice(-2)}</span><div><strong>{row.project}</strong><small>{row.code} · {row.phase}</small></div></div><div className="gantt-timeline"><div className={`gantt-bar ${row.tone}`} style={{ left: `${row.start}%`, width: `${row.width}%` }}><i style={{ width: `${row.progress}%` }} /><span>{row.progress}%</span></div></div><div className="gantt-due"><strong>{row.due}</strong></div></div>)}{rows.length === 0 && <div className="empty">No Gantt data yet.</div>}</div></div><div className="gantt-footer"><span>0 active projects</span></div></section>;
+  const rows = projects.map((project, index) => ({ project: project.name, code: project.code, phase: project.phase, start: Math.min(index * 7, 45), width: 38, progress: project.progress, due: project.due, tone: project.tone }));
+  return <section className="panel gantt-panel"><div className="gantt-title"><div><p className="eyebrow">Master programme</p><h2>All-project Gantt chart</h2><p>Your project schedules will appear here.</p></div><div className="gantt-key"><span><i className="key-plan" />Planned</span><span><i className="key-progress" />Completed</span></div></div><div className="gantt-scroll"><div className="gantt-chart"><div className="gantt-header"><span>Project / current phase</span><div className="gantt-months">{months.map((month) => <span key={month}>{month}</span>)}</div><span>Due</span></div>{rows.map((row) => <div className="gantt-row" key={row.code}><div className="gantt-project"><span className={`project-mark ${row.tone}`}>{row.code.slice(-2)}</span><div><strong>{row.project}</strong><small>{row.code} · {row.phase}</small></div></div><div className="gantt-timeline"><div className={`gantt-bar ${row.tone}`} style={{ left: `${row.start}%`, width: `${row.width}%` }}><i style={{ width: `${row.progress}%` }} /><span>{row.progress}%</span></div></div><div className="gantt-due"><strong>{row.due}</strong></div></div>)}{rows.length === 0 && <div className="empty">No Gantt data yet.</div>}</div></div><div className="gantt-footer"><span>{projects.length} active {projects.length === 1 ? "project" : "projects"}</span></div></section>;
 }
 
 function Metric({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: string; tone: string }) { return <article className="metric"><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value}</strong><small>{detail}</small></div></article>; }
