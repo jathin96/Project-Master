@@ -6,34 +6,17 @@ import { createClient } from "@/lib/supabase/client";
 type Role = "MD" | "Architect" | "Project Head" | "Execution Head" | "Process Coordinator" | "Purchase Manager";
 type View = "dashboard" | "projects" | "tasks" | "budget" | "scope" | "meetings" | "access";
 type Phase = "Initiation" | "Design" | "Full Kitting" | "Execution" | "Finishing";
-type Project = { id: number; code: string; name: string; location: string; progress: number; tasks: number; overdue: number; team: string[]; due: string; tone: string; phase: Phase; gate: string; gateProgress: number; budget: number; spent: number };
+type Project = { id: number | string; code: string; name: string; location: string; progress: number; tasks: number; overdue: number; team: string[]; due: string; tone: string; phase: Phase; gate: string; gateProgress: number; budget: number; spent: number };
 type TaskRow = { code: string; title: string; project: string; phase: Phase; owner: string; start: string; due: string; done: number; actualEnd: string; status: "On time" | "Delayed" | "Completed"; gate?: boolean; frequency?: string; formLink?: string };
 type Acknowledgement = { id: number; task: string; project: string; closedBy: Role; closedAt: string; acknowledged: boolean };
 
-const projects: Project[] = [
-  { id: 1, code: "PM-024", name: "Meridian Corporate Tower", location: "Bengaluru, Karnataka", progress: 72, tasks: 28, overdue: 3, team: ["AR", "VK", "NS"], due: "28 Sep 2026", tone: "blue", phase: "Execution", gate: "Gate 4 · 90% Declared", gateProgress: 62, budget: 185000000, spent: 132500000 },
-  { id: 2, code: "PM-019", name: "Northpoint Logistics Hub", location: "Pune, Maharashtra", progress: 48, tasks: 34, overdue: 5, team: ["RM", "ST", "AK"], due: "12 Nov 2026", tone: "orange", phase: "Full Kitting", gate: "Gate 3 · Ready-to-Execute", gateProgress: 71, budget: 124000000, spent: 58200000 },
-  { id: 3, code: "PM-031", name: "Aster Healthcare Campus", location: "Hyderabad, Telangana", progress: 89, tasks: 19, overdue: 1, team: ["MN", "PS", "JD"], due: "04 Sep 2026", tone: "green", phase: "Finishing", gate: "Gate 5 · Closeout Review", gateProgress: 83, budget: 96000000, spent: 101500000 },
-];
+const projects: Project[] = [];
 
 const money = (value: number) => `${value < 0 ? "−" : ""}₹${(Math.abs(value) / 10000000).toFixed(Math.abs(value) % 10000000 === 0 ? 0 : 1)} Cr`;
 
-const baseTasks: TaskRow[] = [
-  { code: "1.11", title: "GATE 1: Concept Brief Signed", project: "Meridian Corporate Tower", phase: "Initiation", owner: "Ashwin", start: "01 Jul", due: "08 Jul", done: 100, actualEnd: "08 Jul", status: "Completed", gate: true },
-  { code: "2.8", title: "GATE 2: Design Freeze", project: "Meridian Corporate Tower", phase: "Design", owner: "Manjunath", start: "09 Jul", due: "31 Jul", done: 100, actualEnd: "02 Aug", status: "Completed", gate: true },
-  { code: "3.3.3", title: "Master Schedule with buffer", project: "Northpoint Logistics Hub", phase: "Full Kitting", owner: "Planning Engineer", start: "05 Aug", due: "14 Aug", done: 65, actualEnd: "—", status: "Delayed", formLink: "Schedule" },
-  { code: "3.3.5", title: "Constraint Log created", project: "Northpoint Logistics Hub", phase: "Full Kitting", owner: "PC", start: "08 Aug", due: "15 Aug", done: 80, actualEnd: "—", status: "On time", formLink: "Log" },
-  { code: "3.4", title: "GATE 3: Ready-to-Execute", project: "Northpoint Logistics Hub", phase: "Full Kitting", owner: "Naveen", start: "15 Aug", due: "20 Aug", done: 71, actualEnd: "—", status: "On time", gate: true },
-  { code: "4.2", title: "Constraint Log maintained", project: "Meridian Corporate Tower", phase: "Execution", owner: "PC", start: "13 Aug", due: "13 Aug", done: 100, actualEnd: "13 Aug", status: "Completed", frequency: "Daily" },
-  { code: "4.5", title: "Buffer Health updated", project: "Meridian Corporate Tower", phase: "Execution", owner: "PC", start: "13 Aug", due: "13 Aug", done: 45, actualEnd: "—", status: "Delayed", frequency: "Daily" },
-  { code: "5.2", title: "Daily snag walk and register update", project: "Aster Healthcare Campus", phase: "Finishing", owner: "Project Closer", start: "10 Aug", due: "13 Aug", done: 90, actualEnd: "—", status: "On time", frequency: "Daily" },
-];
+const baseTasks: TaskRow[] = [];
 
-const meetings = [
-  { date: "12 AUG", title: "Weekly design coordination", project: "Meridian Corporate Tower", note: "Façade mock-up approval and services routing", owner: "Nisha Shah" },
-  { date: "09 AUG", title: "Client progress review", project: "Aster Healthcare Campus", note: "Handover sequence and statutory clearances", owner: "Priya Sen" },
-  { date: "07 AUG", title: "Site execution alignment", project: "Northpoint Logistics Hub", note: "Dock leveller procurement and drainage levels", owner: "Anita Kapoor" },
-];
+const meetings: { date: string; title: string; project: string; note: string; owner: string }[] = [];
 
 const nav: { id: View; label: string; icon: string }[] = [
   { id: "dashboard", label: "Overview", icon: "⌂" },
@@ -46,12 +29,7 @@ const nav: { id: View; label: string; icon: string }[] = [
 ];
 
 const teamUsers: { initials: string; name: string; email: string; role: Role; access: string }[] = [
-  { initials: "MD", name: "Ashwin Desai", email: "ashwin@grsprojects.in", role: "MD", access: "Oversight" },
-  { initials: "MN", name: "Manjunath Rao", email: "manjunath@grsprojects.in", role: "Architect", access: "Scope & drawings" },
-  { initials: "AR", name: "Arjun Rao", email: "arjun@grsprojects.in", role: "Project Head", access: "Full administrator" },
-  { initials: "NK", name: "Naveen Kumar", email: "naveen@grsprojects.in", role: "Execution Head", access: "Projects & tasks" },
-  { initials: "AK", name: "Anita Kapoor", email: "anita@grsprojects.in", role: "Process Coordinator", access: "Tasks & MOMs" },
-  { initials: "RM", name: "Rhea Mehta", email: "rhea@grsprojects.in", role: "Purchase Manager", access: "Budget & procurement" },
+  { initials: "N", name: "Naveen", email: "naveen@grs.com", role: "Project Head", access: "Full administrator" },
 ];
 
 const roleLabels: Record<string, Role> = {
@@ -97,6 +75,7 @@ export default function Home() {
 }
 
 function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSignOut: () => Promise<unknown> }) {
+  const supabase = useMemo(() => createClient(), []);
   const [view, setView] = useState<View>("dashboard");
   const role = roleLabels[profile.role] ?? "Architect";
   const initials = profile.name.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
@@ -109,6 +88,15 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [acknowledgements, setAcknowledgements] = useState<Acknowledgement[]>([]);
   const [taskToClose, setTaskToClose] = useState<TaskRow | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    supabase.from("pm_projects").select("id,code,name,location,phase,current_gate,gate_progress,budget,spent,due_date").order("created_at").then(({ data }) => {
+      if (!active || !data) return;
+      setProjectRows(data.map((row) => ({ id: row.id, code: row.code, name: row.name, location: row.location ?? "", progress: 0, tasks: 0, overdue: 0, team: [], due: row.due_date ?? "TBD", tone: "blue", phase: ({ INITIATION: "Initiation", DESIGN: "Design", FULL_KITTING: "Full Kitting", EXECUTION: "Execution", FINISHING: "Finishing" } as Record<string, Phase>)[row.phase] ?? "Initiation", gate: row.current_gate ?? "Gate 1 · Concept Brief Signed", gateProgress: row.gate_progress ?? 0, budget: Number(row.budget) || 0, spent: Number(row.spent) || 0 })));
+    });
+    return () => { active = false; };
+  }, [supabase]);
 
   const filteredProjects = useMemo(() => projectRows.filter((p) => `${p.name} ${p.code} ${p.location}`.toLowerCase().includes(query.toLowerCase())), [query, projectRows]);
   const isAdmin = role === "Project Head";
@@ -150,7 +138,7 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
         <button className="brand" onClick={() => setView("dashboard")} aria-label="Project Master home"><span>PM</span><strong>PROJECT<br />MASTER</strong></button>
         <nav aria-label="Primary navigation">
           <p className="eyebrow side-label">Workspace</p>
-          {visibleNav.map((item) => <button key={item.id} className={`nav-item ${view === item.id ? "active" : ""}`} onClick={() => setView(item.id)}><span>{item.icon}</span>{item.label}{item.id === "tasks" && <i>8</i>}</button>)}
+          {visibleNav.map((item) => <button key={item.id} className={`nav-item ${view === item.id ? "active" : ""}`} onClick={() => setView(item.id)}><span>{item.icon}</span>{item.label}{item.id === "tasks" && taskRows.length > 0 && <i>{taskRows.length}</i>}</button>)}
         </nav>
         <div className="sidebar-bottom">
           <button className="nav-item"><span>?</span>Help centre</button>
@@ -174,7 +162,7 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
         <div className="content">
           <section className="hero-row">
             <div><p className="eyebrow">Project operations</p><h1>{view === "dashboard" ? `Welcome, ${profile.name.split(" ")[0]}.` : nav.find((n) => n.id === view)?.label}</h1><p className="subtitle">{view === "dashboard" ? "Here’s what needs your attention across all projects today." : `A focused view of your ${nav.find((n) => n.id === view)?.label.toLowerCase()}.`}</p></div>
-            <div className="header-actions"><button className="secondary" onClick={() => notify("Report prepared for review")}>↗ Export report</button>{view === "projects" && canManage ? <button className="primary" onClick={() => setManageModal("project")}>＋ Add project</button> : view === "access" && canManage ? <button className="primary" onClick={() => setManageModal("member")}>＋ Add member</button> : view !== "budget" && <button className="primary" onClick={() => view === "meetings" ? setModal("mom") : setModal("task")}>＋ {view === "meetings" ? "Add MOM" : "New task"}</button>}</div>
+            <div className="header-actions"><button className="secondary" onClick={() => notify("Report prepared for review")}>↗ Export report</button>{view === "projects" && canManage ? <button className="primary" onClick={() => setManageModal("project")}>＋ Add project</button> : view === "access" && canManage ? <button className="primary" onClick={() => setManageModal("member")}>＋ Add member</button> : view !== "budget" && projectRows.length > 0 && <button className="primary" onClick={() => view === "meetings" ? setModal("mom") : setModal("task")}>＋ {view === "meetings" ? "Add MOM" : "New task"}</button>}</div>
           </section>
 
           {view === "dashboard" && <Dashboard onOpen={setView} />}
@@ -188,7 +176,7 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
       </section>
 
       {modal && <Modal type={modal} canEdit={modal === "task" ? canCreateTasks : canEditMoms} onClose={() => setModal(null)} onSubmit={submitTask} onSave={() => { setModal(null); notify("Meeting notes saved"); }} />}
-      {manageModal && <ManageModal type={manageModal} onClose={() => setManageModal(null)} onSave={async (data) => { if (manageModal === "project") { setProjectRows([...projectRows, { id: Date.now(), code: `PM-${String(projectRows.length + 32).padStart(3, "0")}`, name: data.name, location: data.location, progress: 0, tasks: 0, overdue: 0, team: [initials], due: data.due || "TBD", tone: "blue", phase: "Initiation", gate: "Gate 1 · Concept Brief Signed", gateProgress: 0, budget: Number(data.budget) || 0, spent: 0 }]); notify("New project added"); } else { const supabase = createClient(); const { error } = await supabase.functions.invoke("pm-admin-users", { body: { name: data.name, email: data.email, password: data.password, role: data.role } }); if (error) { notify(error.message || "Unable to create user"); return; } notify(`${data.name} created as ${data.role}`); } setManageModal(null); }} />}
+      {manageModal && <ManageModal type={manageModal} onClose={() => setManageModal(null)} onSave={async (data) => { if (manageModal === "project") { const code = `PM-${String(projectRows.length + 1).padStart(3, "0")}`; const { data: saved, error } = await supabase.from("pm_projects").insert({ code, name: data.name, location: data.location, budget: Number(data.budget) || 0, due_date: data.due || null, current_gate: "Gate 1 · Concept Brief Signed" }).select("id").single(); if (error || !saved) { notify(error?.message || "Unable to save project"); return; } setProjectRows([...projectRows, { id: saved.id, code, name: data.name, location: data.location, progress: 0, tasks: 0, overdue: 0, team: [initials], due: data.due || "TBD", tone: "blue", phase: "Initiation", gate: "Gate 1 · Concept Brief Signed", gateProgress: 0, budget: Number(data.budget) || 0, spent: 0 }]); notify("New project added"); } else { const { error } = await supabase.functions.invoke("pm-admin-users", { body: { name: data.name, email: data.email, password: data.password, role: data.role } }); if (error) { notify(error.message || "Unable to create user"); return; } notify(`${data.name} created as ${data.role}`); } setManageModal(null); }} />}
       {toast && <div className="toast"><span>✓</span>{toast}</div>}
       {notificationsOpen && <NotificationPanel role={role} items={acknowledgements} onClose={() => setNotificationsOpen(false)} onAcknowledge={(id) => { setAcknowledgements(acknowledgements.map((item) => item.id === id ? { ...item, acknowledged: true } : item)); notify("Task closure acknowledged"); }} />}
       {taskToClose && <TaskClosureModal task={taskToClose} role={role} onClose={() => setTaskToClose(null)} onConfirm={() => confirmTaskClosure(taskToClose)} />}
@@ -199,39 +187,33 @@ function ProjectMasterApp({ profile, onSignOut }: { profile: AuthProfile; onSign
 function Dashboard({ onOpen }: { onOpen: (view: View) => void }) {
   return <>
     <section className="metrics">
-      <Metric label="Running projects" value="12" detail="Across 5 lifecycle phases" icon="▦" tone="blue" />
-      <Metric label="Gate readiness" value="78%" detail="3 gates need attention" icon="◇" tone="green" />
-      <Metric label="Stale updates" value="8" detail="PC follow-up required" icon="!" tone="coral" />
-      <Metric label="Weekly disciplines" value="91%" detail="Compliance this week" icon="◷" tone="amber" />
+      <Metric label="Running projects" value="0" detail="Add your first project" icon="▦" tone="blue" />
+      <Metric label="Gate readiness" value="0%" detail="No gates configured" icon="◇" tone="green" />
+      <Metric label="Stale updates" value="0" detail="Workspace is up to date" icon="!" tone="coral" />
+      <Metric label="Weekly disciplines" value="0%" detail="No activity recorded" icon="◷" tone="amber" />
     </section>
 
     <section className="dashboard-grid">
       <div className="panel project-panel">
         <PanelTitle title="Active projects" subtitle="Current delivery health" action="View all projects" onClick={() => onOpen("projects")} />
-        <div className="project-list">{projects.map((p) => <ProjectRow key={p.id} project={p} />)}</div>
+        <div className="project-list">{projects.map((p) => <ProjectRow key={p.id} project={p} />)}{projects.length === 0 && <div className="empty">No projects yet. Open Projects and add your first project.</div>}</div>
       </div>
       <div className="panel deadline-panel">
         <PanelTitle title="Deadline watch" subtitle="Next 7 days" action="Open tasks" onClick={() => onOpen("tasks")} />
-        <div className="deadline-list">{baseTasks.slice(2, 6).map((task, i) => <div className="deadline" key={task.title}><div className={`date-box ${i === 0 ? "urgent" : ""}`}><strong>{task.due.split(" ")[0]}</strong><span>AUG</span></div><div><strong>{task.title}</strong><small>{task.phase} · {task.project}</small></div><span className={`status ${task.status === "Delayed" ? "delayed" : task.status === "Completed" ? "complete" : "ontime"}`}>{task.status}</span></div>)}</div>
+        <div className="deadline-list">{baseTasks.slice(0, 4).map((task, i) => <div className="deadline" key={task.title}><div className={`date-box ${i === 0 ? "urgent" : ""}`}><strong>{task.due.split(" ")[0]}</strong><span>DUE</span></div><div><strong>{task.title}</strong><small>{task.phase} · {task.project}</small></div><span className={`status ${task.status === "Delayed" ? "delayed" : task.status === "Completed" ? "complete" : "ontime"}`}>{task.status}</span></div>)}{baseTasks.length === 0 && <div className="empty">No upcoming deadlines.</div>}</div>
       </div>
     </section>
 
     <GanttChart />
 
-    <section className="panel activity activity-wide"><PanelTitle title="Recent activity" subtitle="Across your workspace" /><div className="activity-list"><Activity initials="NS" text={<><b>Nisha Shah</b> added meeting notes</>} detail="Meridian Corporate Tower · 24 min ago" /><Activity initials="RM" text={<><b>Rhea Mehta</b> completed a task</>} detail="MEP coordination — Basement · 1 hr ago" /><Activity initials="PS" text={<><b>Priya Sen</b> uploaded a drawing</>} detail="Aster Healthcare Campus · 2 hrs ago" /></div></section>
+    <section className="panel activity activity-wide"><PanelTitle title="Recent activity" subtitle="Across your workspace" /><div className="empty">No activity yet.</div></section>
   </>;
 }
 
 function GanttChart() {
   const months = ["JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-  const rows = [
-    { project: "Meridian Corporate Tower", code: "PM-024", phase: "Execution", start: 3, width: 48, progress: 72, due: "28 Sep", tone: "blue" },
-    { project: "Northpoint Logistics Hub", code: "PM-019", phase: "Full Kitting", start: 18, width: 66, progress: 48, due: "12 Nov", tone: "orange" },
-    { project: "Aster Healthcare Campus", code: "PM-031", phase: "Finishing", start: 0, width: 39, progress: 89, due: "04 Sep", tone: "green" },
-    { project: "Riverstone Experience Centre", code: "PM-035", phase: "Design", start: 32, width: 60, progress: 31, due: "18 Dec", tone: "purple" },
-    { project: "Eastgate Office Retrofit", code: "PM-028", phase: "Execution", start: 9, width: 57, progress: 64, due: "21 Oct", tone: "teal" },
-  ];
-  return <section className="panel gantt-panel"><div className="gantt-title"><div><p className="eyebrow">Master programme</p><h2>All-project Gantt chart</h2><p>Lifecycle schedule and delivery progress · Jul–Dec 2026</p></div><div className="gantt-key"><span><i className="key-plan" />Planned</span><span><i className="key-progress" />Completed</span><span><i className="key-today" />Today</span></div></div><div className="gantt-scroll"><div className="gantt-chart"><div className="gantt-header"><span>Project / current phase</span><div className="gantt-months">{months.map((month) => <span key={month}>{month}</span>)}</div><span>Due</span></div><div className="today-line"><span>13 AUG</span></div>{rows.map((row) => <div className="gantt-row" key={row.code}><div className="gantt-project"><span className={`project-mark ${row.tone}`}>{row.code.slice(-2)}</span><div><strong>{row.project}</strong><small>{row.code} · {row.phase}</small></div></div><div className="gantt-timeline"><div className={`gantt-bar ${row.tone}`} style={{ left: `${row.start}%`, width: `${row.width}%` }}><i style={{ width: `${row.progress}%` }} /><span>{row.progress}%</span></div></div><div className="gantt-due"><strong>{row.due}</strong><small>2026</small></div></div>)}</div></div><div className="gantt-footer"><span>Showing 5 of 12 active projects</span><button>View full programme →</button></div></section>;
+  const rows: { project: string; code: string; phase: string; start: number; width: number; progress: number; due: string; tone: string }[] = [];
+  return <section className="panel gantt-panel"><div className="gantt-title"><div><p className="eyebrow">Master programme</p><h2>All-project Gantt chart</h2><p>Your project schedules will appear here.</p></div><div className="gantt-key"><span><i className="key-plan" />Planned</span><span><i className="key-progress" />Completed</span></div></div><div className="gantt-scroll"><div className="gantt-chart"><div className="gantt-header"><span>Project / current phase</span><div className="gantt-months">{months.map((month) => <span key={month}>{month}</span>)}</div><span>Due</span></div>{rows.map((row) => <div className="gantt-row" key={row.code}><div className="gantt-project"><span className={`project-mark ${row.tone}`}>{row.code.slice(-2)}</span><div><strong>{row.project}</strong><small>{row.code} · {row.phase}</small></div></div><div className="gantt-timeline"><div className={`gantt-bar ${row.tone}`} style={{ left: `${row.start}%`, width: `${row.width}%` }}><i style={{ width: `${row.progress}%` }} /><span>{row.progress}%</span></div></div><div className="gantt-due"><strong>{row.due}</strong></div></div>)}{rows.length === 0 && <div className="empty">No Gantt data yet.</div>}</div></div><div className="gantt-footer"><span>0 active projects</span></div></section>;
 }
 
 function Metric({ label, value, detail, icon, tone }: { label: string; value: string; detail: string; icon: string; tone: string }) { return <article className="metric"><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value}</strong><small>{detail}</small></div></article>; }
@@ -249,7 +231,7 @@ function AccessControl({ onNotify, onInvite, managerRole }: { onNotify: (message
   return <section className="access-page"><div className="admin-banner"><div><span>⚿</span><div><p className="eyebrow">Project Head administration</p><h2>Access control</h2><small>Manage users, roles and workspace permissions</small></div></div><button className="primary" onClick={() => onNotify("User invitation ready")}>＋ Invite user</button></div><div className="panel user-panel"><div className="panel-title"><div><h2>Workspace users</h2><p>{users.length} active team members</p></div></div><div className="user-head"><span>User</span><span>Role</span><span>Default access</span><span>Status</span><span></span></div>{users.map((user,index) => <div className="user-row" key={user.email}><div><span className="avatar soft">{user.initials}</span><div><strong>{user.name}</strong><small>{user.email}</small></div></div><select value={user.role} disabled={user.role === "Project Head"} onChange={(e) => { const next=[...users]; next[index]={...user,role:e.target.value as Role}; setUsers(next); onNotify(`${user.name}'s role updated`); }}><option>MD</option><option>Architect</option><option>Project Head</option><option>Execution Head</option><option>Process Coordinator</option><option>Purchase Manager</option></select><span>{user.access}</span><span className="status ontime">Active</span><button className="more">•••</button></div>)}</div><div className="panel permission-panel"><div className="panel-title"><div><h2>Role permissions</h2><p>Default access across Project Master</p></div><button onClick={() => onNotify("Permission changes saved")}>Save permissions →</button></div><div className="permission-table"><div className="permission-head"><span>Role</span><span>Overview</span><span>Projects</span><span>Tasks</span><span>Scope</span><span>MOMs</span><span>Budget</span><span>Admin</span></div>{permissions.map((row) => <div className={`permission-row ${row[0] === "Project Head" ? "admin-row" : ""}`} key={row[0]}>{row.map((value,i) => <span key={`${row[0]}-${i}`} className={`permission-${value.toLowerCase().replace("—","none")}`}>{value}</span>)}</div>)}</div></div></section>;
 }
 
-function Projects({ rows }: { rows: Project[] }) { return <section className="panel table-page"><div className="filters"><button className="filter-active">All projects <b>12</b></button><button>Initiation <b>2</b></button><button>Design <b>2</b></button><button>Full Kitting <b>3</b></button><button>Execution <b>4</b></button><button>Finishing <b>1</b></button></div><div className="cards-grid">{rows.map((p) => <article className="project-card" key={p.id}><div className="card-top"><span className={`project-mark ${p.tone}`}>{p.code.slice(-2)}</span><span className="phase-pill">Phase · {p.phase}</span></div><h3>{p.name}</h3><p>{p.code} · {p.location}</p><div className="gate-block"><div><span>Current gate</span><strong>{p.gate}</strong></div><b>{p.gateProgress}%</b></div><div className="progress gate-progress"><i style={{ width: `${p.gateProgress}%` }} /></div><div className="card-meta"><div><span>Due date</span><strong>{p.due}</strong></div><div><span>Open tasks</span><strong>{p.tasks}</strong></div><div><span>Delayed</span><strong className="coral-text">{p.overdue}</strong></div></div><div className="card-footer"><div className="avatars">{p.team.map((x) => <span key={x}>{x}</span>)}</div><button>Open lifecycle →</button></div></article>)}</div>{rows.length === 0 && <div className="empty">No projects match your search.</div>}</section>; }
+function Projects({ rows }: { rows: Project[] }) { return <section className="panel table-page"><div className="filters"><button className="filter-active">All projects <b>{rows.length}</b></button><button>Initiation <b>{rows.filter((p) => p.phase === "Initiation").length}</b></button><button>Design <b>{rows.filter((p) => p.phase === "Design").length}</b></button><button>Full Kitting <b>{rows.filter((p) => p.phase === "Full Kitting").length}</b></button><button>Execution <b>{rows.filter((p) => p.phase === "Execution").length}</b></button><button>Finishing <b>{rows.filter((p) => p.phase === "Finishing").length}</b></button></div><div className="cards-grid">{rows.map((p) => <article className="project-card" key={p.id}><div className="card-top"><span className={`project-mark ${p.tone}`}>{p.code.slice(-2)}</span><span className="phase-pill">Phase · {p.phase}</span></div><h3>{p.name}</h3><p>{p.code} · {p.location}</p><div className="gate-block"><div><span>Current gate</span><strong>{p.gate}</strong></div><b>{p.gateProgress}%</b></div><div className="progress gate-progress"><i style={{ width: `${p.gateProgress}%` }} /></div><div className="card-meta"><div><span>Due date</span><strong>{p.due}</strong></div><div><span>Open tasks</span><strong>{p.tasks}</strong></div><div><span>Delayed</span><strong className="coral-text">{p.overdue}</strong></div></div><div className="card-footer"><div className="avatars">{p.team.map((x) => <span key={x}>{x}</span>)}</div><button>Open lifecycle →</button></div></article>)}</div>{rows.length === 0 && <div className="empty">No projects yet. Use “Add project” to create your first project.</div>}</section>; }
 
 function BudgetSheet({ rows }: { rows: Project[] }) {
   const budget = rows.reduce((sum, project) => sum + project.budget, 0);
@@ -263,13 +245,16 @@ function BudgetSheet({ rows }: { rows: Project[] }) {
 
 function Tasks({ rows, editable, onUpdate }: { rows: TaskRow[]; editable: boolean; onUpdate: (task: TaskRow) => void }) {
   const [phase, setPhase] = useState<Phase | "All">("All");
-  const [project, setProject] = useState("Northpoint Logistics Hub");
-  const visible = rows.filter((task) => (phase === "All" || task.phase === phase) && task.project === project);
+  const [project, setProject] = useState("");
   const phases: (Phase | "All")[] = ["All", "Initiation", "Design", "Full Kitting", "Execution", "Finishing"];
+  if (rows.length === 0) return <section className="panel table-page"><div className="empty">No tasks yet. Add a project first, then create its tasks.</div></section>;
+  const projectNames = Array.from(new Set(rows.map((task) => task.project)));
+  const selectedProject = project || projectNames[0];
+  const visible = rows.filter((task) => (phase === "All" || task.phase === phase) && task.project === selectedProject);
   return <section className="panel table-page lifecycle-page">
-    <div className="lifecycle-toolbar"><div><p className="eyebrow">Lifecycle task list</p><h2>{project}</h2></div><select value={project} onChange={(e) => setProject(e.target.value)}><option>Northpoint Logistics Hub</option><option>Meridian Corporate Tower</option><option>Aster Healthcare Campus</option></select></div>
+    <div className="lifecycle-toolbar"><div><p className="eyebrow">Lifecycle task list</p><h2>{selectedProject}</h2></div><select value={selectedProject} onChange={(e) => setProject(e.target.value)}>{projectNames.map((name) => <option key={name}>{name}</option>)}</select></div>
     <div className="phase-track">{["Initiation", "Design", "Full Kitting", "Execution", "Finishing"].map((item, index) => <button key={item} onClick={() => setPhase(item as Phase)} className={phase === item ? "selected" : ""}><span>{index + 1}</span><div><strong>{item}</strong><small>{index < 2 ? "Gate passed" : index === 2 ? "In progress" : "Locked"}</small></div></button>)}</div>
-    <div className="filters phase-filters">{phases.map((item) => <button key={item} onClick={() => setPhase(item)} className={phase === item ? "filter-active" : ""}>{item}<b>{rows.filter((x) => x.phase === item && x.project === project).length}</b></button>)}<span className="permission-note">{editable ? "Owner updates enabled" : "View-only for this role"}</span></div>
+    <div className="filters phase-filters">{phases.map((item) => <button key={item} onClick={() => setPhase(item)} className={phase === item ? "filter-active" : ""}>{item}<b>{rows.filter((x) => (item === "All" || x.phase === item) && x.project === selectedProject).length}</b></button>)}<span className="permission-note">{editable ? "Owner updates enabled" : "View-only for this role"}</span></div>
     <div className="lifecycle-table"><div className="lifecycle-head"><span>Task / Gate</span><span>Owner</span><span>Schedule</span><span>% Done</span><span>Actual end</span><span>Status</span></div>{visible.map((task) => <div className={`lifecycle-row ${task.gate ? "gate-row" : ""}`} key={`${task.code}-${task.project}`}><div className="task-cell"><span className={task.gate ? "gate-symbol" : "task-code"}>{task.gate ? "G" : task.code}</span><div><strong>{task.title}</strong><small>{task.phase}{task.frequency ? ` · ${task.frequency}` : ""}{task.formLink ? ` · ${task.formLink} attached` : ""}</small></div></div><span className="owner-cell">{task.owner}</span><span className="schedule-cell"><b>{task.start}</b> → <b>{task.due}</b></span><div className="done-cell"><div className="progress"><i style={{ width: `${task.done}%` }} /></div><strong>{task.done}%</strong></div><span>{task.actualEnd}</span><button disabled={!editable || task.status === "Completed"} onClick={() => onUpdate(task)} className={`status ${task.status === "Delayed" ? "delayed" : task.status === "Completed" ? "complete" : "ontime"}`}>{task.status === "Completed" ? "Completed" : "Close task"}</button></div>)}</div>
     {visible.length === 0 && <div className="phase-empty"><span>◇</span><strong>No tasks in this phase yet</strong><p>Tasks stay locked until the preceding gate is formally passed.</p></div>}
     <div className="lifecycle-rule"><span>i</span><p><strong>Gate control is active.</strong> No task in the next phase can start until the gate above it reaches 100% and is formally approved.</p></div>
@@ -285,8 +270,8 @@ function NotificationPanel({ role, items, onClose, onAcknowledge }: { role: Role
   return <aside className="notification-panel"><div className="notification-head"><div><p className="eyebrow">Workflow alerts</p><h2>Notifications</h2></div><button onClick={onClose}>×</button></div>{role !== "Project Head" ? <div className="notification-empty"><span>♢</span><strong>No acknowledgements assigned</strong><p>Task closure acknowledgements are routed to the Project Head.</p></div> : items.length === 0 ? <div className="notification-empty"><span>✓</span><strong>You’re all caught up</strong><p>New task closures will appear here for acknowledgement.</p></div> : <div className="ack-list">{items.map((item) => <article className={item.acknowledged ? "acknowledged" : ""} key={item.id}><div className="ack-icon">✓</div><div><span>Task closure</span><strong>{item.task}</strong><p>{item.project}</p><small>Closed by {item.closedBy} · {item.closedAt}</small></div>{item.acknowledged ? <span className="ack-done">Acknowledged</span> : <button onClick={() => onAcknowledge(item.id)}>Acknowledge</button>}</article>)}</div>}</aside>;
 }
 
-function Scope() { const docs = ["Architectural IFC Set — Rev 06", "Structural Coordination Drawing", "MEP Builders Work — Level 04", "Landscape Scope Matrix"]; return <section className="panel table-page"><div className="scope-intro"><div><span className="scope-icon">▱</span><div><h2>Project scope library</h2><p>Approved work items and latest drawing references</p></div></div><select><option>Meridian Corporate Tower</option><option>Northpoint Logistics Hub</option><option>Aster Healthcare Campus</option></select></div><div className="scope-grid">{docs.map((doc, i) => <article className="doc-card" key={doc}><div className="doc-preview"><span>{i % 2 ? "DWG" : "PDF"}</span><div className="blueprint-lines" /></div><div className="doc-info"><div><h3>{doc}</h3><p>{["Façade, cores, floor plans and details", "Post-tensioned slab and column grid", "Electrical, plumbing and HVAC openings", "Hardscape, planting and external works"][i]}</p></div><small>Updated {i + 2} days ago · Rev 0{i + 3}</small><button>View drawing ↗</button></div></article>)}</div></section>; }
+function Scope() { return <section className="panel table-page"><div className="scope-intro"><div><span className="scope-icon">▱</span><div><h2>Project scope library</h2><p>Approved work items and latest drawing references</p></div></div></div><div className="empty">No scopes or drawings yet. Add a project first.</div></section>; }
 
-function Meetings({ editable, onAdd }: { editable: boolean; onAdd: () => void }) { return <section className="panel table-page"><div className="filters"><button className="filter-active">All meetings <b>16</b></button><button>This month <b>6</b></button><button>Action pending <b>4</b></button><span className="permission-note">{editable ? "You can create and edit MOMs" : "View-only for this role"}</span></div><div className="meeting-list">{meetings.map((meeting) => <article className="meeting-card" key={meeting.title}><div className="meeting-date"><strong>{meeting.date.split(" ")[0]}</strong><span>{meeting.date.split(" ")[1]}</span></div><div><span className="meeting-project">{meeting.project}</span><h3>{meeting.title}</h3><p>{meeting.note}</p><small>Recorded by {meeting.owner}</small></div><div className="meeting-actions"><span className="status ontime">MOM ready</span><button>View notes →</button></div></article>)}</div>{editable && <button className="add-note" onClick={onAdd}>＋ Record a new meeting</button>}</section>; }
+function Meetings({ editable, onAdd }: { editable: boolean; onAdd: () => void }) { return <section className="panel table-page"><div className="filters"><button className="filter-active">All meetings <b>{meetings.length}</b></button><button>This month <b>0</b></button><button>Action pending <b>0</b></button><span className="permission-note">{editable ? "You can create and edit MOMs" : "View-only for this role"}</span></div><div className="meeting-list">{meetings.map((meeting) => <article className="meeting-card" key={meeting.title}><div className="meeting-date"><strong>{meeting.date.split(" ")[0]}</strong><span>{meeting.date.split(" ")[1]}</span></div><div><span className="meeting-project">{meeting.project}</span><h3>{meeting.title}</h3><p>{meeting.note}</p><small>Recorded by {meeting.owner}</small></div><div className="meeting-actions"><span className="status ontime">MOM ready</span><button>View notes →</button></div></article>)}</div>{meetings.length === 0 && <div className="empty">No meeting notes yet.</div>}{editable && <button className="add-note" onClick={onAdd}>＋ Record a new meeting</button>}</section>; }
 
 function Modal({ type, canEdit, onClose, onSubmit, onSave }: { type: "task" | "mom"; canEdit: boolean; onClose: () => void; onSubmit: (e: FormEvent<HTMLFormElement>) => void; onSave: () => void }) { return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" onMouseDown={(e) => e.stopPropagation()}><div className="modal-head"><div><p className="eyebrow">Project Master</p><h2>{type === "task" ? "Create a new task" : "Record meeting notes"}</h2></div><button onClick={onClose}>×</button></div>{!canEdit && <div className="access-banner"><span>i</span><p><strong>View-only access</strong><br />Switch to the {type === "task" ? "Project Incharge" : "Process Coordinator"} role to save changes.</p></div>}<form onSubmit={type === "task" ? onSubmit : (e) => { e.preventDefault(); onSave(); }}><label>{type === "task" ? "Task title" : "Meeting title"}<input name="title" required placeholder={type === "task" ? "What needs to be done?" : "e.g. Weekly design coordination"} /></label><label>Project<select name="project"><option>Meridian Corporate Tower</option><option>Northpoint Logistics Hub</option><option>Aster Healthcare Campus</option></select></label>{type === "mom" && <label>Minutes of meeting<textarea rows={5} required placeholder="Capture decisions, actions and owners..." /></label>}<div className="form-grid"><label>{type === "task" ? "Due date" : "Meeting date"}<input type="date" defaultValue="2026-08-22" /></label><label>{type === "task" ? "Status" : "Created by"}<select><option>{type === "task" ? "On time" : "Anita Kapoor"}</option><option>{type === "task" ? "Delayed" : "Priya Sen"}</option></select></label></div><div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button disabled={!canEdit} className="primary">{canEdit ? (type === "task" ? "Create task" : "Save MOM") : "No edit permission"}</button></div></form></div></div>; }
